@@ -104,10 +104,15 @@ impl BinaryDownloader {
             "mediamtx"
         };
 
+        let dest = install_dir.clone();
         if url.ends_with(".tar.gz") {
-            Self::extract_tar_gz(&archive_bytes, &install_dir).await?;
+            tokio::task::spawn_blocking(move || Self::extract_tar_gz(&archive_bytes, &dest))
+                .await
+                .map_err(|e| CoreError::Download(format!("Extract task failed: {e}")))??;
         } else {
-            Self::extract_zip(&archive_bytes, &install_dir).await?;
+            tokio::task::spawn_blocking(move || Self::extract_zip(&archive_bytes, &dest))
+                .await
+                .map_err(|e| CoreError::Download(format!("Extract task failed: {e}")))??;
         }
 
         let binary_path = install_dir.join(binary_name);
@@ -144,7 +149,7 @@ impl BinaryDownloader {
         path.exists().then_some(path)
     }
 
-    async fn extract_tar_gz(data: &[u8], dest: &Path) -> Result<(), CoreError> {
+    fn extract_tar_gz(data: &[u8], dest: &Path) -> Result<(), CoreError> {
         use std::io::Read;
 
         let decoder = flate2::read::GzDecoder::new(data);
@@ -160,13 +165,13 @@ impl BinaryDownloader {
 
             let mut buf = Vec::new();
             entry.read_to_end(&mut buf)?;
-            tokio::fs::write(&dest_path, &buf).await?;
+            std::fs::write(&dest_path, &buf)?;
         }
 
         Ok(())
     }
 
-    async fn extract_zip(data: &[u8], dest: &Path) -> Result<(), CoreError> {
+    fn extract_zip(data: &[u8], dest: &Path) -> Result<(), CoreError> {
         use std::io::Read;
 
         let cursor = std::io::Cursor::new(data);
@@ -190,7 +195,7 @@ impl BinaryDownloader {
             let dest_path = dest.join(file_name);
             let mut buf = Vec::new();
             file.read_to_end(&mut buf)?;
-            tokio::fs::write(&dest_path, &buf).await?;
+            std::fs::write(&dest_path, &buf)?;
         }
 
         Ok(())
