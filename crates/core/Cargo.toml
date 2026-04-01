@@ -4,3 +4,16 @@ version.workspace = true
 edition.workspace = true
 
 [dependencies]
+serde.workspace = true
+serde_json.workspace = true
+serde_yaml.workspace = true
+tokio.workspace = true
+reqwest.workspace = true
+thiserror.workspace = true
+tracing.workspace = true
+flate2 = "1"
+tar = "0.4"
+zip = "2"
+
+[target.'cfg(unix)'.dependencies]
+nix = { version = "0.29", features = ["signal"] }

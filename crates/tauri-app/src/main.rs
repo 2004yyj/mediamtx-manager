@@ -1,3 +1,3 @@
 fn main() {
-    println!("{}", mediamtx_manager_core::hello());
+    println!("MediaMTX Manager (Tauri) — not yet initialized");
 }

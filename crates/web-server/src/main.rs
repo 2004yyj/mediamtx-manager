@@ -1,3 +1,3 @@
 fn main() {
-    println!("{}", mediamtx_manager_core::hello());
+    println!("MediaMTX Manager (Web Server) — not yet initialized");
 }
