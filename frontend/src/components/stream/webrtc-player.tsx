@@ -45,14 +45,18 @@ export function WebRTCPlayer({ url, className }: WebRTCPlayerProps) {
         const offer = await pc.createOffer();
         await pc.setLocalDescription(offer);
 
+        // ICE gathering이 완료될 때까지 대기
+        const completeOffer = await waitForIceGathering(pc);
+
         const resp = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/sdp" },
-          body: offer.sdp,
+          body: completeOffer,
         });
 
         if (!resp.ok) {
-          throw new Error(`WHEP failed: ${resp.status} ${resp.statusText}`);
+          const body = await resp.text().catch(() => "");
+          throw new Error(`WHEP ${resp.status}: ${body}`);
         }
 
         const answerSdp = await resp.text();
@@ -103,4 +107,22 @@ export function WebRTCPlayer({ url, className }: WebRTCPlayerProps) {
       )}
     </div>
   );
+}
+
+function waitForIceGathering(pc: RTCPeerConnection): Promise<string> {
+  return new Promise((resolve) => {
+    if (pc.iceGatheringState === "complete") {
+      resolve(pc.localDescription!.sdp);
+      return;
+    }
+    pc.onicegatheringstatechange = () => {
+      if (pc.iceGatheringState === "complete") {
+        resolve(pc.localDescription!.sdp);
+      }
+    };
+    // 타임아웃: 5초 후 현재 상태로 진행
+    setTimeout(() => {
+      resolve(pc.localDescription!.sdp);
+    }, 5000);
+  });
 }

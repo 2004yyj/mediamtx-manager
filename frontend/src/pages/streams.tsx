@@ -34,7 +34,7 @@ export default function StreamsPage() {
     return {
       rtsp: `rtsp://${host}:${rtspPort}/${name}`,
       rtmp: `rtmp://${host}:${rtmpPort}/${name}`,
-      hls: `http://${host}:${hlsPort}/${name}/`,
+      hls: `http://${host}:${hlsPort}/${name}/index.m3u8`,
       webrtc: `http://${host}:${webrtcPort}/${name}/whep`,
       srt: `srt://${host}:${srtPort}?streamid=read:${name}`,
     };
