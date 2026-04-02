@@ -1,10 +1,9 @@
 import { NavLink } from "react-router-dom";
-import { LayoutDashboard, GitBranch, Radio, Settings } from "lucide-react";
+import { LayoutDashboard, Radio, Settings } from "lucide-react";
 import { cn } from "../../lib/utils";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
-  { to: "/paths", icon: GitBranch, label: "Paths" },
   { to: "/streams", icon: Radio, label: "Streams" },
   { to: "/settings", icon: Settings, label: "Settings" },
 ];
@@ -14,7 +13,7 @@ export function Sidebar() {
     <aside className="w-56 border-r border-gray-200 dark:border-gray-800 bg-gray-50 dark:bg-gray-900 flex flex-col">
       <div className="p-4 border-b border-gray-200 dark:border-gray-800">
         <h1 className="text-lg font-semibold text-gray-900 dark:text-white">
-          MediaMTX Manager
+          RTSP Streamer
         </h1>
       </div>
       <nav className="flex-1 p-2 space-y-1">

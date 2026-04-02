@@ -6,7 +6,7 @@ import {
   useConfigFile,
   useWriteConfigFile,
 } from "../hooks/use-config";
-import type { GlobalConfig, WebRTCICEServer, AuthInternalUser } from "../api/types";
+import type { GlobalConfig, AuthInternalUser } from "../api/types";
 import {
   Section,
   ProtocolSection,
@@ -381,42 +381,6 @@ function ProtocolsSection({ draft, update }: SectionFormProps) {
         />
       </ProtocolSection>
 
-      {/* WebRTC */}
-      <ProtocolSection
-        title="WebRTC"
-        enabled={draft.webrtc !== false}
-        onToggle={(v) => update("webrtc", v)}
-        address={draft.webrtcAddress ?? ""}
-        onAddressChange={(v) => update("webrtcAddress", v)}
-        defaultPort=":8889"
-      >
-        <div className="grid grid-cols-2 gap-4">
-          <TextField
-            label="Local UDP Address"
-            value={draft.webrtcLocalUDPAddress ?? ""}
-            onChange={(v) => update("webrtcLocalUDPAddress", v)}
-            placeholder=":8189"
-            mono
-          />
-          <TextField
-            label="Local TCP Address"
-            value={draft.webrtcLocalTCPAddress ?? ""}
-            onChange={(v) => update("webrtcLocalTCPAddress", v)}
-            placeholder=""
-            mono
-          />
-        </div>
-        <ToggleField
-          label="IPs From Interfaces"
-          checked={draft.webrtcIPsFromInterfaces ?? true}
-          onChange={(v) => update("webrtcIPsFromInterfaces", v)}
-        />
-        <ICEServersList
-          servers={draft.webrtcICEServers2 ?? []}
-          onChange={(v) => update("webrtcICEServers2", v)}
-        />
-      </ProtocolSection>
-
       {/* SRT */}
       <ProtocolSection
         title="SRT"
@@ -426,122 +390,6 @@ function ProtocolsSection({ draft, update }: SectionFormProps) {
         onAddressChange={(v) => update("srtAddress", v)}
         defaultPort=":8890"
       />
-
-      {/* Metrics */}
-      <ProtocolSection
-        title="Metrics"
-        enabled={draft.metrics ?? false}
-        onToggle={(v) => update("metrics", v)}
-        address={draft.metricsAddress ?? ""}
-        onAddressChange={(v) => update("metricsAddress", v)}
-        defaultPort=":9998"
-      />
-
-      {/* Playback */}
-      <ProtocolSection
-        title="Playback"
-        enabled={draft.playback ?? false}
-        onToggle={(v) => update("playback", v)}
-        address={draft.playbackAddress ?? ""}
-        onAddressChange={(v) => update("playbackAddress", v)}
-        defaultPort=":9996"
-      />
-
-      {/* PPROF */}
-      <ProtocolSection
-        title="PPROF"
-        enabled={draft.pprof ?? false}
-        onToggle={(v) => update("pprof", v)}
-        address={draft.pprofAddress ?? ""}
-        onAddressChange={(v) => update("pprofAddress", v)}
-        defaultPort=":9999"
-      />
-    </div>
-  );
-}
-
-// ──────────────── ICE Servers ────────────────
-
-function ICEServersList({
-  servers,
-  onChange,
-}: {
-  servers: WebRTCICEServer[];
-  onChange: (v: WebRTCICEServer[]) => void;
-}) {
-  const addServer = () => {
-    onChange([...servers, { url: "" }]);
-  };
-
-  const removeServer = (idx: number) => {
-    onChange(servers.filter((_, i) => i !== idx));
-  };
-
-  const updateServer = (idx: number, field: keyof WebRTCICEServer, value: string) => {
-    const next = servers.map((s, i) =>
-      i === idx ? { ...s, [field]: value } : s
-    );
-    onChange(next);
-  };
-
-  return (
-    <div className="space-y-2">
-      <div className="flex items-center justify-between">
-        <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-          ICE Servers
-        </span>
-        <button
-          type="button"
-          onClick={addServer}
-          className="text-xs text-blue-600 hover:text-blue-700"
-        >
-          + Add
-        </button>
-      </div>
-      {servers.map((server, idx) => (
-        <div
-          key={idx}
-          className="rounded border border-gray-200 dark:border-gray-700 p-3 space-y-2"
-        >
-          <div className="flex items-start gap-2">
-            <div className="flex-1 space-y-2">
-              <input
-                type="text"
-                value={server.url}
-                onChange={(e) => updateServer(idx, "url", e.target.value)}
-                placeholder="stun:stun.l.google.com:19302"
-                className="w-full px-2 py-1 text-sm font-mono rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
-              />
-              <div className="grid grid-cols-2 gap-2">
-                <input
-                  type="text"
-                  value={server.username ?? ""}
-                  onChange={(e) => updateServer(idx, "username", e.target.value)}
-                  placeholder="username"
-                  className="px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
-                />
-                <input
-                  type="text"
-                  value={server.password ?? ""}
-                  onChange={(e) => updateServer(idx, "password", e.target.value)}
-                  placeholder="password"
-                  className="px-2 py-1 text-sm rounded border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
-                />
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => removeServer(idx)}
-              className="text-gray-400 hover:text-red-500 text-sm mt-1"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      ))}
-      {servers.length === 0 && (
-        <p className="text-xs text-gray-400">ICE 서버가 없습니다</p>
-      )}
     </div>
   );
 }
