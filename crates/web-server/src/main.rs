@@ -70,8 +70,24 @@ async fn auto_setup(state: &AppState) {
 
     match state.process_manager.start().await {
         Ok(()) => tracing::info!("MediaMTX auto-started"),
-        Err(e) => tracing::error!("Failed to auto-start MediaMTX: {e}"),
+        Err(e) => {
+            tracing::error!("Failed to auto-start MediaMTX: {e}");
+            return;
+        }
     }
+
+    // MediaMTX API가 응답할 때까지 대기
+    let client = reqwest::Client::new();
+    for i in 0..30 {
+        match client.get("http://127.0.0.1:9997/v3/config/global/get").send().await {
+            Ok(resp) if resp.status().is_success() => {
+                tracing::info!("MediaMTX API ready ({}ms)", i * 500);
+                return;
+            }
+            _ => tokio::time::sleep(std::time::Duration::from_millis(500)).await,
+        }
+    }
+    tracing::warn!("MediaMTX API not responding after 15s");
 }
 
 async fn ensure_config(cfm: &mediamtx_manager_core::ConfigFileManager) {

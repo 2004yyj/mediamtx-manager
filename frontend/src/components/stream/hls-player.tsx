@@ -67,7 +67,7 @@ export function HLSPlayer({ url, className }: HLSPlayerProps) {
     hls.on(Hls.Events.ERROR, (_event, data) => {
       if (data.fatal) {
         setStatus("error");
-        setErrorMsg(`HLS error: ${data.type}`);
+        setErrorMsg(`HLS error: ${data.type} (${data.details}) — ${url}`);
       }
     });
 
