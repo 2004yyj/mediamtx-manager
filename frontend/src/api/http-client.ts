@@ -24,7 +24,7 @@ async function request<T>(url: string, options?: RequestInit): Promise<T> {
     throw new Error(`API error ${resp.status}: ${body}`);
   }
   const text = await resp.text();
-  return text ? JSON.parse(text) : undefined;
+  return text ? JSON.parse(text) : (undefined as T);
 }
 
 export class HttpClient implements ApiAdapter {

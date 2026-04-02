@@ -1,14 +1,11 @@
 import { useState } from "react";
-import { Video, Radio, Tv, Copy, Check, Trash2, Upload, Square, FilePlus } from "lucide-react";
+import { Video, Radio, Copy, Check, Trash2, Upload, Square, FilePlus } from "lucide-react";
 import { useActivePaths, useDeletePathConfig } from "../hooks/use-paths";
 import { useGlobalConfig } from "../hooks/use-config";
 import { usePublishingList, useStartPublish, useStopPublish } from "../hooks/use-publish";
-import { WebRTCPlayer } from "../components/stream/webrtc-player";
 import { HLSPlayer } from "../components/stream/hls-player";
 import { cn } from "../lib/utils";
 import type { PathItem } from "../api/types";
-
-type PlayerMode = "webrtc" | "hls" | null;
 
 export default function StreamsPage() {
   const { data: paths, isLoading } = useActivePaths();
@@ -16,17 +13,13 @@ export default function StreamsPage() {
   const { data: publishingList } = usePublishingList();
   const deletePath = useDeletePathConfig();
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
-  const [playerMode, setPlayerMode] = useState<PlayerMode>(null);
   const [showPublishForm, setShowPublishForm] = useState(false);
 
   const readyPaths = paths?.items.filter((p) => p.ready) ?? [];
   const allPaths = paths?.items ?? [];
 
-  // MediaMTX 서버 주소 (포트만 추출하여 현재 호스트에 합침)
   const host = typeof window !== "undefined" ? window.location.hostname : "localhost";
   const rtspPort = extractPort(config?.rtspAddress, "8554");
-  const hlsPort = extractPort(config?.hlsAddress, "8888");
-  const webrtcPort = extractPort(config?.webrtcAddress, "8889");
   const rtmpPort = extractPort(config?.rtmpAddress, "1935");
   const srtPort = extractPort(config?.srtAddress, "8890");
 
@@ -34,20 +27,13 @@ export default function StreamsPage() {
     return {
       rtsp: `rtsp://${host}:${rtspPort}/${name}`,
       rtmp: `rtmp://${host}:${rtmpPort}/${name}`,
-      hls: `http://${host}:${hlsPort}/${name}/index.m3u8`,
-      webrtc: `http://${host}:${webrtcPort}/${name}/whep`,
+      hls: `/hls/${name}/index.m3u8`,
       srt: `srt://${host}:${srtPort}?streamid=read:${name}`,
     };
   }
 
-  const handlePlay = (name: string, mode: PlayerMode) => {
-    if (selectedPath === name && playerMode === mode) {
-      setSelectedPath(null);
-      setPlayerMode(null);
-    } else {
-      setSelectedPath(name);
-      setPlayerMode(mode);
-    }
+  const handlePlay = (name: string) => {
+    setSelectedPath(selectedPath === name ? null : name);
   };
 
   return (
@@ -90,16 +76,14 @@ export default function StreamsPage() {
               key={path.name}
               path={path}
               urls={getUrls(path.name)}
-              isSelected={selectedPath === path.name}
-              playerMode={selectedPath === path.name ? playerMode : null}
+              isPlaying={selectedPath === path.name}
               isPublishing={publishingList?.includes(path.name) ?? false}
-              onPlay={(mode) => handlePlay(path.name, mode)}
+              onPlay={() => handlePlay(path.name)}
               onDelete={() => {
                 if (confirm(`"${path.name}" 스트림을 삭제하시겠습니까?`)) {
                   deletePath.mutate(path.name);
                 }
               }}
-              webrtcEnabled={config?.webrtc !== false}
               hlsEnabled={config?.hls !== false}
             />
           ))}
@@ -114,31 +98,26 @@ export default function StreamsPage() {
 interface StreamCardProps {
   path: PathItem;
   urls: Record<string, string>;
-  isSelected: boolean;
-  playerMode: PlayerMode;
+  isPlaying: boolean;
   isPublishing: boolean;
-  onPlay: (mode: PlayerMode) => void;
+  onPlay: () => void;
   onDelete: () => void;
-  webrtcEnabled: boolean;
   hlsEnabled: boolean;
 }
 
 function StreamCard({
   path,
   urls,
-  isSelected,
-  playerMode,
+  isPlaying,
   isPublishing,
   onPlay,
   onDelete,
-  webrtcEnabled,
   hlsEnabled,
 }: StreamCardProps) {
   const stopPublish = useStopPublish();
 
   return (
     <div className="rounded-lg border border-gray-200 dark:border-gray-800 overflow-hidden">
-      {/* 헤더 */}
       <div className="flex items-center justify-between p-4">
         <div className="flex items-center gap-3">
           <span
@@ -166,34 +145,19 @@ function StreamCard({
           </div>
         </div>
 
-        {/* 액션 버튼 */}
         <div className="flex gap-2">
-          {path.ready && webrtcEnabled && (
-            <button
-              onClick={() => onPlay("webrtc")}
-              className={cn(
-                "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
-                isSelected && playerMode === "webrtc"
-                  ? "bg-blue-600 text-white"
-                  : "border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
-              )}
-            >
-              <Tv className="w-4 h-4" />
-              WebRTC
-            </button>
-          )}
           {path.ready && hlsEnabled && (
             <button
-              onClick={() => onPlay("hls")}
+              onClick={onPlay}
               className={cn(
                 "inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md transition-colors",
-                isSelected && playerMode === "hls"
+                isPlaying
                   ? "bg-blue-600 text-white"
                   : "border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800"
               )}
             >
               <Video className="w-4 h-4" />
-              HLS
+              {isPlaying ? "Stop" : "Play"}
             </button>
           )}
           {isPublishing && (
@@ -203,7 +167,7 @@ function StreamCard({
               className="inline-flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-red-600 text-white hover:bg-red-700 disabled:opacity-50"
             >
               <Square className="w-3.5 h-3.5" />
-              Stop
+              Stop Publish
             </button>
           )}
           <button
@@ -215,14 +179,10 @@ function StreamCard({
         </div>
       </div>
 
-      {/* 플레이어 */}
-      {isSelected && playerMode && path.ready && (
+      {/* HLS 플레이어 */}
+      {isPlaying && path.ready && (
         <div className="relative aspect-video bg-black mx-4 mb-4 rounded-md overflow-hidden">
-          {playerMode === "webrtc" ? (
-            <WebRTCPlayer url={urls.webrtc} className="absolute inset-0" />
-          ) : (
-            <HLSPlayer url={urls.hls} className="absolute inset-0" />
-          )}
+          <HLSPlayer url={urls.hls} className="absolute inset-0" />
         </div>
       )}
 
@@ -231,7 +191,6 @@ function StreamCard({
         <UrlRow label="RTSP" url={urls.rtsp} />
         <UrlRow label="RTMP" url={urls.rtmp} />
         <UrlRow label="HLS" url={urls.hls} />
-        <UrlRow label="WebRTC" url={urls.webrtc} />
         <UrlRow label="SRT" url={urls.srt} />
       </div>
     </div>
@@ -271,11 +230,6 @@ function PublishFileForm({ onClose }: { onClose: () => void }) {
   const [filePath, setFilePath] = useState("");
   const [looped, setLooped] = useState(true);
 
-  const handlePickFile = () => {
-    // 서버 측 파일 경로를 직접 입력 (웹 모드에서는 파일 다이얼로그 불가)
-    // filePath input에 직접 타이핑
-  };
-
   const handleSubmit = () => {
     if (!pathName.trim() || !filePath.trim()) return;
     startPublish.mutate(
@@ -290,20 +244,13 @@ function PublishFileForm({ onClose }: { onClose: () => void }) {
 
       <div>
         <label className="block text-sm font-medium mb-1">Video File</label>
-        <div className="flex gap-2">
-          <input
-            value={filePath}
-            onChange={(e) => setFilePath(e.target.value)}
-            placeholder="/path/to/video.mp4"
-            className="flex-1 px-3 py-1.5 text-sm font-mono rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
-          />
-          <button
-            onClick={handlePickFile}
-            className="px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800 hidden"
-          >
-            Browse
-          </button>
-        </div>
+        <input
+          value={filePath}
+          onChange={(e) => setFilePath(e.target.value)}
+          placeholder="/path/to/video.mp4"
+          className="w-full px-3 py-1.5 text-sm font-mono rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
+        />
+        <p className="text-xs text-gray-500 mt-1">서버에서 접근 가능한 파일 경로</p>
       </div>
 
       <div>
@@ -314,7 +261,6 @@ function PublishFileForm({ onClose }: { onClose: () => void }) {
           placeholder="my_stream"
           className="w-full px-3 py-1.5 text-sm rounded-md border border-gray-300 dark:border-gray-700 bg-white dark:bg-gray-900"
         />
-        <p className="text-xs text-gray-500 mt-1">이 이름으로 RTSP/HLS/WebRTC에서 접근 가능</p>
       </div>
 
       <div className="flex items-center gap-2">

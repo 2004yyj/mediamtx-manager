@@ -80,6 +80,10 @@ async fn ensure_config(cfm: &mediamtx_manager_core::ConfigFileManager) {
 # MediaMTX configuration (managed by MediaMTX Manager)
 api: yes
 apiAddress: :9997
+webrtcLocalUDPAddress: 0.0.0.0:8189
+webrtcAdditionalHosts: [127.0.0.1]
+webrtcICEServers2:
+  - url: stun:stun.l.google.com:19302
 ";
             if let Err(e) = cfm.write_string(default_config).await {
                 tracing::error!("Failed to create default config: {e}");
