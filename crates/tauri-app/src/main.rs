@@ -82,9 +82,44 @@ async fn auto_setup(state: &AppState) {
         }
     }
 
+    // 설정 파일이 없으면 API 활성화된 기본 설정 생성
+    ensure_config(&state.config_file_manager).await;
+
     // 프로세스 시작
     match state.process_manager.start().await {
         Ok(()) => tracing::info!("MediaMTX auto-started"),
         Err(e) => tracing::error!("Failed to auto-start MediaMTX: {e}"),
+    }
+}
+
+/// 설정 파일의 API가 활성화되어 있는지 확인하고, 아니면 활성화
+async fn ensure_config(cfm: &mediamtx_manager_core::ConfigFileManager) {
+    match cfm.read_as_string().await {
+        Ok(content) => {
+            // api: no 또는 api: false → api: yes로 교체
+            if content.contains("api: no") || content.contains("api: false") {
+                let patched = content
+                    .replace("api: no", "api: yes")
+                    .replace("api: false", "api: yes");
+                if let Err(e) = cfm.write_string(&patched).await {
+                    tracing::error!("Failed to enable API in config: {e}");
+                } else {
+                    tracing::info!("Enabled API in existing config");
+                }
+            }
+        }
+        Err(_) => {
+            // 설정 파일이 없으면 기본 설정 생성
+            let default_config = "\
+# MediaMTX configuration (managed by MediaMTX Manager)
+api: yes
+apiAddress: :9997
+";
+            if let Err(e) = cfm.write_string(default_config).await {
+                tracing::error!("Failed to create default config: {e}");
+            } else {
+                tracing::info!("Created default config with API enabled");
+            }
+        }
     }
 }
