@@ -51,17 +51,21 @@ impl BinaryDownloader {
 
         let arch = match std::env::consts::ARCH {
             "x86_64" | "x86" => "amd64",
-            "aarch64" => "arm64v8",
+            "aarch64" => "arm64",
             other => return Err(CoreError::Download(format!("Unsupported arch: {other}"))),
         };
 
         let ext = if os == "windows" { "zip" } else { "tar.gz" };
 
-        // 버전 태그에서 'v' 프리픽스 제거
-        let ver = version.strip_prefix('v').unwrap_or(version);
+        // 버전 태그에 'v' 프리픽스가 없으면 추가
+        let version = if version.starts_with('v') {
+            version.to_string()
+        } else {
+            format!("v{version}")
+        };
 
         Ok(format!(
-            "https://github.com/bluenviron/mediamtx/releases/download/{version}/mediamtx_{ver}_{os}_{arch}.{ext}"
+            "https://github.com/bluenviron/mediamtx/releases/download/{version}/mediamtx_{version}_{os}_{arch}.{ext}"
         ))
     }
 
