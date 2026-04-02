@@ -85,6 +85,7 @@ export default function StreamsPage() {
                 }
               }}
               hlsEnabled={config?.hls !== false}
+              hlsSegmentCount={config?.hlsSegmentCount ?? 7}
             />
           ))}
         </div>
@@ -103,6 +104,7 @@ interface StreamCardProps {
   onPlay: () => void;
   onDelete: () => void;
   hlsEnabled: boolean;
+  hlsSegmentCount: number;
 }
 
 function StreamCard({
@@ -113,6 +115,7 @@ function StreamCard({
   onPlay,
   onDelete,
   hlsEnabled,
+  hlsSegmentCount,
 }: StreamCardProps) {
   const stopPublish = useStopPublish();
 
@@ -182,7 +185,7 @@ function StreamCard({
       {/* HLS 플레이어 */}
       {isPlaying && path.ready && (
         <div className="relative aspect-video bg-black mx-4 mb-4 rounded-md overflow-hidden">
-          <HLSPlayer url={urls.hls} className="absolute inset-0" />
+          <HLSPlayer url={urls.hls} className="absolute inset-0" minSegments={hlsSegmentCount} />
         </div>
       )}
 

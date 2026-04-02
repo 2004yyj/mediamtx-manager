@@ -2,80 +2,127 @@ import { useEffect, useRef, useState } from "react";
 import Hls from "hls.js";
 
 interface HLSPlayerProps {
-  url: string; // HLS endpoint, e.g. http://localhost:8888/stream1/
+  url: string;
   className?: string;
+  minSegments?: number;
 }
 
-export function HLSPlayer({ url, className }: HLSPlayerProps) {
+export function HLSPlayer({ url, className, minSegments = 3 }: HLSPlayerProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
-  const [status, setStatus] = useState<"connecting" | "playing" | "error">("connecting");
+  const [status, setStatus] = useState<"waiting" | "playing" | "error">("waiting");
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    const video = videoRef.current;
-    if (!video) return;
+    let cancelled = false;
+    let retryTimer: ReturnType<typeof setTimeout>;
 
-    setStatus("connecting");
-    setErrorMsg("");
+    async function checkSegments(): Promise<boolean> {
+      try {
+        const ctrl = new AbortController();
+        const t = setTimeout(() => ctrl.abort(), 3000);
+        const resp = await fetch(url, { signal: ctrl.signal });
+        clearTimeout(t);
+        if (!resp.ok) return false;
 
-    // Safari는 HLS를 네이티브로 지원
-    if (video.canPlayType("application/vnd.apple.mpegurl")) {
-      video.src = url;
-      video.addEventListener("playing", () => setStatus("playing"), { once: true });
-      video.addEventListener(
-        "error",
-        () => {
-          setStatus("error");
-          setErrorMsg("HLS 재생 실패");
-        },
-        { once: true }
-      );
-      video.play().catch(() => {
-        setStatus("error");
-        setErrorMsg("자동 재생 실패");
-      });
-      return () => {
-        video.src = "";
-      };
-    }
+        const body = await resp.text();
+        if (!body.includes("#EXTM3U")) return false;
 
-    // 다른 브라우저는 hls.js 사용
-    if (!Hls.isSupported()) {
-      setStatus("error");
-      setErrorMsg("이 브라우저는 HLS를 지원하지 않습니다");
-      return;
-    }
+        // 마스터 m3u8 → 하위 m3u8 참조 찾기
+        const subMatch = body.match(/^[^#\s].+\.m3u8$/m);
+        if (subMatch) {
+          const subUrl = url.replace(/[^/]+$/, subMatch[0]);
+          const subCtrl = new AbortController();
+          const st = setTimeout(() => subCtrl.abort(), 3000);
+          const subResp = await fetch(subUrl, { signal: subCtrl.signal });
+          clearTimeout(st);
+          const subBody = await subResp.text();
+          return (subBody.match(/#EXTINF/g) || []).length >= minSegments;
+        }
 
-    const hls = new Hls({
-      enableWorker: true,
-      lowLatencyMode: true,
-    });
-    hlsRef.current = hls;
-
-    hls.loadSource(url);
-    hls.attachMedia(video);
-
-    hls.on(Hls.Events.MANIFEST_PARSED, () => {
-      video.play().catch(() => {});
-    });
-
-    hls.on(Hls.Events.FRAG_LOADED, () => {
-      setStatus("playing");
-    });
-
-    hls.on(Hls.Events.ERROR, (_event, data) => {
-      if (data.fatal) {
-        setStatus("error");
-        setErrorMsg(`HLS error: ${data.type} (${data.details}) — ${url}`);
+        return (body.match(/#EXTINF/g) || []).length >= minSegments;
+      } catch {
+        return false;
       }
-    });
+    }
+
+    async function run() {
+      while (!cancelled) {
+        // 1. 세그먼트가 충분할 때까지 폴링
+        setStatus("waiting");
+        let ready = false;
+        for (let i = 0; i < 120 && !cancelled; i++) {
+          if (await checkSegments()) { ready = true; break; }
+          await new Promise((r) => { retryTimer = setTimeout(r, 1000); });
+        }
+        if (cancelled) return;
+        if (!ready) {
+          setStatus("error");
+          setErrorMsg("스트림 대기 시간 초과");
+          return;
+        }
+
+        // 2. hls.js로 재생 시도
+        const result = await tryPlay();
+        if (cancelled) return;
+
+        // 성공이면 끝, 실패면 다시 1부터
+        if (result === "playing") return;
+        // 실패 시 2초 대기 후 재시도
+        await new Promise((r) => { retryTimer = setTimeout(r, 2000); });
+      }
+    }
+
+    function tryPlay(): Promise<"playing" | "failed"> {
+      return new Promise((resolve) => {
+        const video = videoRef.current;
+        if (!video || cancelled) { resolve("failed"); return; }
+
+        if (!Hls.isSupported()) {
+          // Safari 네이티브
+          video.src = url;
+          video.addEventListener("playing", () => {
+            if (!cancelled) setStatus("playing");
+            resolve("playing");
+          }, { once: true });
+          video.addEventListener("error", () => resolve("failed"), { once: true });
+          video.play().catch(() => resolve("failed"));
+          return;
+        }
+
+        const hls = new Hls({ enableWorker: true, lowLatencyMode: true });
+        hlsRef.current = hls;
+        hls.loadSource(url);
+        hls.attachMedia(video);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          video.play().catch(() => {});
+        });
+
+        video.addEventListener("playing", () => {
+          if (!cancelled) setStatus("playing");
+          resolve("playing");
+        }, { once: true });
+
+        hls.on(Hls.Events.ERROR, (_event, data) => {
+          if (!data.fatal) return;
+          hls.destroy();
+          hlsRef.current = null;
+          resolve("failed");
+        });
+      });
+    }
+
+    run();
 
     return () => {
-      hls.destroy();
+      cancelled = true;
+      clearTimeout(retryTimer);
+      hlsRef.current?.destroy();
       hlsRef.current = null;
+      if (videoRef.current) videoRef.current.src = "";
     };
-  }, [url]);
+  }, [url, minSegments]);
 
   return (
     <div className={className}>
@@ -86,9 +133,9 @@ export function HLSPlayer({ url, className }: HLSPlayerProps) {
         muted
         className="w-full h-full bg-black rounded-md"
       />
-      {status === "connecting" && (
+      {status === "waiting" && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/50 rounded-md">
-          <span className="text-white text-sm">Connecting (HLS)...</span>
+          <span className="text-white text-sm">버퍼링 중...</span>
         </div>
       )}
       {status === "error" && (
