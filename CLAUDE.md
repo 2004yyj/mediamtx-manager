@@ -27,6 +27,51 @@ MediaMTX를 활용한 RTSP 서버 관리 애플리케이션.
 - REST API 제공 (기본 포트 9997)
 - YAML 기반 설정 파일
 
+### MediaMTX YAML 설정 구조
+
+mediamtx.yml은 **플랫 구조**로, 글로벌 설정이 루트 레벨에 존재하며 중첩 키는 `pathDefaults`와 `paths` 두 개뿐이다.
+
+#### 설정 카테고리 (UI 탭/섹션 매핑 기준)
+
+| 카테고리 | 주요 필드 | UI 우선순위 |
+|---------|----------|-----------|
+| **General/Logging** | logLevel, logDestinations, logFile, readTimeout, writeTimeout, writeQueueSize, udpMaxPayloadSize | 높음 |
+| **Authentication** | authMethod(internal/http/jwt), authInternalUsers, authHTTPAddress, authJWTJWKS | 높음 |
+| **API** | api(bool), apiAddress(:9997) | 필수 |
+| **RTSP** | rtsp(bool), rtspAddress(:8554), rtspEncryption(no/strict/optional), rtspTransports, rtspAuthMethods | 높음 |
+| **RTMP** | rtmp(bool), rtmpAddress(:1935), rtmpEncryption | 보통 |
+| **HLS** | hls(bool), hlsAddress(:8888), hlsVariant(mpegts/fmp4/lowLatency), hlsSegmentCount, hlsSegmentDuration | 높음 |
+| **WebRTC** | webrtc(bool), webrtcAddress(:8889), webrtcICEServers2, webrtcLocalUDPAddress, webrtcAdditionalHosts | 높음 |
+| **SRT** | srt(bool), srtAddress(:8890) | 보통 |
+| **Metrics** | metrics(bool), metricsAddress(:9998) | 낮음 |
+| **Playback** | playback(bool), playbackAddress(:9996) | 낮음 |
+| **PPROF** | pprof(bool), pprofAddress(:9999) | 낮음 |
+| **Recording** | record(bool), recordPath, recordFormat(fmp4/mpegts), recordSegmentDuration, recordDeleteAfter | 높음 |
+| **Path Defaults** | source, sourceOnDemand, maxReaders, runOn* hooks | 높음 |
+
+#### 데이터 타입별 UI 컴포넌트 매핑
+
+| 데이터 타입 | 예시 값 | UI 컴포넌트 |
+|------------|---------|------------|
+| bool | `true`/`false` | Toggle Switch |
+| enum | `info`, `no`/`strict`/`optional` | Select/Dropdown |
+| string | `/path/to/file` | Text Input |
+| int | `512`, `7` | Number Input |
+| duration | `10s`, `1h`, `200ms` | Text Input + 단위 힌트 |
+| size | `50M` | Text Input + 단위 힌트 |
+| address | `:8554`, `0.0.0.0:8554` | Text Input (포트 강조) |
+| string[] | `[udp, multicast, tcp]` | Checkbox Group 또는 Tag Input |
+| object[] | `webrtcICEServers2`, `authInternalUsers` | 동적 폼 리스트 |
+
+#### 설정 UI 구현 원칙
+
+1. **카테고리별 탭/섹션**: 12개 카테고리를 탭 또는 아코디언으로 그룹화
+2. **프로토콜 공통 패턴**: 각 프로토콜은 `{proto}`(활성화), `{proto}Address`(주소), `{proto}Encryption`(암호화), TLS 키/인증서, CORS 필드를 공유 — 재사용 가능한 프로토콜 설정 컴포넌트로 추출
+3. **pathDefaults vs paths**: "경로 기본값 편집"과 "개별 경로 편집"을 분리, 개별 경로는 기본값을 상속
+4. **extra 필드 처리**: Rust 모델의 `extra: HashMap<String, Value>`로 아직 타이핑되지 않은 필드도 편집 가능해야 함
+5. **Hot Reload 연동**: 설정 저장 시 MediaMTX API `PATCH /v3/config/global/patch` 호출로 런타임 반영, 필요 시 YAML 파일 직접 쓰기 + 프로세스 재시작
+6. **Raw YAML 폴백**: 폼 UI로 커버하지 못하는 필드는 기존 YAML 에디터 탭에서 직접 편집
+
 ### 기능 목록
 
 #### Phase 1: 코어
